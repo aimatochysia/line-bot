@@ -9,7 +9,7 @@ def webhook(request):
   tagged_user_id = payload["events"][0]["source"]["userId"]
 
   # Get the message to send.
-  message = payload["events"][0]["message"]["text"]
+  message = f"Hey <@{tagged_user_id}>, this is your daily reminder!"
 
   # Send the message to the group.
   requests.post(
@@ -22,7 +22,7 @@ def webhook(request):
       "messages": [
         {
           "type": "text",
-          "text": f"Hey <@{tagged_user_id}>, {message}!"
+          "text": message
         }
       ]
     }
