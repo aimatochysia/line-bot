@@ -15,7 +15,7 @@ def webhook(request):
   requests.post(
     "https://api.line.me/v2/bot/message/push",
     headers={
-      "Authorization": "Bearer YOUR_LINE_ACCESS_TOKEN"
+      "Authorization": "Bearer YO8hmjXdzmiEjW/bjXupqRTSM1HfQ4enoT4W9uCn56KDCgGp/zToQm0mb7DCwj0K8NSWoeHXoWS5xKeuLdv32hTns+KnzRTnnzlepnsF4ZT2fhEURnL5JvvufWhAi3opoCGvTU5XeDCobxfpsBcAwgdB04t89/1O/w1cDnyilFU="
     },
     json={
       "to": payload["events"][0]["source"]["groupId"],
