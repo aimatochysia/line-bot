@@ -1,100 +1,109 @@
-require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Client } = require('pg');
-const moment = require('moment');
-const { CronJob } = require('cron');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+const POSTGRESQL_URL = process.env.POSTGRESQL_URL;
+const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
+const LINE_TO = process.env.LINE_TO;
+
 const client = new Client({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: POSTGRESQL_URL,
   ssl: {
-    rejectUnauthorized: false,
-  },
+    rejectUnauthorized: true
+  }
 });
 
-client.connect();
-
-let requestBodies = [];
+client.connect()
+  .then(() => console.log('Connected to PostgreSQL'))
+  .catch(err => console.error('Connection error', err.stack));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.post('*', (req, res) => {
-  const timestamp = moment().format('YYYY-MM-DD HH:mm:ss');
-  const requestBody = {
-    timestamp,
-    method: req.method,
-    path: req.path,
-    headers: req.headers,
-    body: req.body,
+app.get('/force-check', async (req, res) => {
+  try {
+    await checkAndPushMessage();
+    res.json({ message: 'Force check initiated.' });
+  } catch (error) {
+    console.error('Error during force check:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+async function checkAndPushMessage() {
+  const currentDate = new Date().toISOString().split('T')[0];
+  const query = {
+    text: `SELECT * FROM line_bot_activity WHERE date = $1 AND isposted = true`,
+    values: [currentDate],
   };
 
-  requestBodies.push(requestBody);
+  try {
+    const result = await client.query(query);
+    if (result.rows.length > 0) {
+      console.log('Already posted for today, skipping.');
+      return;
+    }
+    const retryKey = uuidv4();
+    const body = {
+      to: LINE_TO,
+      messages: [
+        { type: 'text', text: 'JANSEN KERJAIN GENSHIT SAYA, PETRA' },
+        { type: 'text', text: 'DING DING DING' }
+      ]
+    };
 
-  res.json({ message: 'Request received and logged.', requestBody });
-});
-
-app.get('/', (req, res) => {
-  const formattedRequests = requestBodies.map((req) => ({
-    Timestamp: req.timestamp,
-    Method: req.method,
-    Path: req.path,
-    Headers: req.headers,
-    Body: req.body,
-  }));
-
-  res.json(formattedRequests);
-});
-
-const checkDatabaseAndSendMessage = async () => {
-  const fetch = (await import('node-fetch')).default; // Dynamic import of node-fetch
-  const today = moment().format('YYYY-MM-DD');
-  const currentTime = moment().format('HH:mm:ss');
-
-  const res = await client.query(
-    'SELECT * FROM line_bot_activity WHERE date = $1',
-    [today]
-  );
-
-  if (res.rows.length === 0) {
-    const response = await fetch('https://api.line.me/v2/bot/message/push', {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`,
+      'X-Line-Retry-Key': retryKey
+    };
+    const fetch = await import('node-fetch');
+    
+    const response = await fetch.default('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.LINE_ACCESS_TOKEN}`,
-        'X-Line-Retry-Key': require('crypto').randomUUID(),
-      },
-      body: JSON.stringify({
-        to: process.env.LINE_TO,
-        messages: [
-          {
-            type: 'text',
-            text: 'JANSEN KERJAIN GENSHIT SAYA - PETRA',
-          },
-        ],
-      }),
+      headers: headers,
+      body: JSON.stringify(body)
     });
 
-    if (response.ok) {
-      await client.query(
-        'INSERT INTO line_bot_activity (date, time, isposted) VALUES ($1, $2, $3)',
-        [today, currentTime, true]
-      );
-      console.log('Message sent and logged.');
-    } else {
-      console.error('Failed to send message.');
+    if (!response.ok) {
+      throw new Error(`Failed to push message to LINE API: ${response.statusText}`);
     }
-  } else {
-    console.log('Message already sent today.');
+    const insertQuery = {
+      text: `INSERT INTO line_bot_activity (date, time, isposted) VALUES ($1, $2, $3)`,
+      values: [currentDate, new Date().toLocaleTimeString(), true],
+    };
+
+    await client.query(insertQuery);
+    console.log('Message pushed and logged.');
+  } catch (error) {
+    console.error('Error in checkAndPushMessage:', error);
+    throw error;
   }
-};
+}
 
-const job = new CronJob('*/5 * * * *', checkDatabaseAndSendMessage);
-job.start();
+const cron = require('node-cron');
 
+cron.schedule('*/5 * * * *', async () => {
+  console.log('Running scheduled check...');
+  try {
+    await checkAndPushMessage();
+  } catch (error) {
+    console.error('Error during scheduled check:', error);
+  }
+});
+app.get('/trigger-check', async (req, res) => {
+  try {
+    await checkAndPushMessage();
+    res.send(`<button onclick="window.location='/force-check'">Force Check Now</button>`);
+  } catch (error) {
+    console.error('Error during trigger check:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
