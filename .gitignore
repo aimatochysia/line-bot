@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+
+# Environment variables file (if using dotenv or similar)
+.env
+
+# Log files
+*.log
+
+# Editor directories and files
+.idea/
+.vscode/
+
+# OS-specific files
+Thumbs.db
+.DS_Store
+
+# npm debugging logs
+npm-debug.log*
+
+# Yarn integrity file
+yarn-error.log
