@@ -23,7 +23,9 @@ client.connect()
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-
+app.get('/', (req, res) => {
+  res.send('Welcome to the Line Bot Server');
+});
 app.get('/force-check', async (req, res) => {
   try {
     await checkAndPushMessage();
@@ -104,6 +106,7 @@ app.get('/trigger-check', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
