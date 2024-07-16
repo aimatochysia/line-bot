@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 const app = express();
 const port = process.env.PORT || 3000;
 
-const connectionString = process.env.POSTGRESQL_URL;
+const connectionString = process.env.DATABASE_URL;
 const lineAccessToken = process.env.LINE_ACCESS_TOKEN;
 const lineTo = process.env.LINE_TO;
 
