@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Client } = require('pg');
-const fetch = require('node-fetch');
 const moment = require('moment');
 const { CronJob } = require('cron');
 
@@ -51,6 +50,7 @@ app.get('/', (req, res) => {
 });
 
 const checkDatabaseAndSendMessage = async () => {
+  const fetch = (await import('node-fetch')).default; // Dynamic import of node-fetch
   const today = moment().format('YYYY-MM-DD');
   const currentTime = moment().format('HH:mm:ss');
 
@@ -72,7 +72,7 @@ const checkDatabaseAndSendMessage = async () => {
         messages: [
           {
             type: 'text',
-            text: 'JANSEN KERJAIN GENSHIT SAYA -PETRA',
+            text: 'JANSEN KERJAIN GENSHIT SAYA - PETRA',
           },
         ],
       }),
