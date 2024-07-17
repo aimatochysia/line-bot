@@ -10,10 +10,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const client = new Client({
-  connectionString: process.env.POSTGRESQL_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  connectionString: process.env.DATBASE_URL
 });
 
 client.connect();
