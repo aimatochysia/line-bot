@@ -19,12 +19,11 @@ const client = new Client({
 client.connect();
 
 let requestBodies = [];
-console.log('Starting webserver');
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.post('*', (req, res) => {
-  console.log('Posting. . .');
   const timestamp = moment().format('YYYY-MM-DD HH:mm:ss');
   const requestBody = {
     timestamp,
@@ -52,7 +51,6 @@ app.get('/', (req, res) => {
 });
 
 const checkDatabaseAndSendMessage = async () => {
-  console.log('Checking database. . .');
   const today = moment().format('YYYY-MM-DD');
   const currentTime = moment().format('HH:mm:ss');
 
