@@ -1,76 +1,37 @@
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Client } = require('pg');
-const axios = require('axios');
-const cron = require('node-cron');
+const moment = require('moment');
+const { CronJob } = require('cron');
 const { v4: uuidv4 } = require('uuid');
-
-const POSTGRESQL_URL = process.env.POSTGRESQL_URL || 'your_postgresql_url';
-const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN || 'your_line_access_token';
-const LINE_TO = process.env.LINE_TO || 'your_line_to';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-let requestBodies = [];
-
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
 const client = new Client({
-  connectionString: POSTGRESQL_URL,
+  connectionString: process.env.POSTGRESQL_URL,
   ssl: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
 client.connect();
 
-const checkAndSendMessage = async () => {
-  try {
-    const query = `
-      SELECT * FROM line_bot_activity 
-      WHERE date = CURRENT_DATE 
-      AND isposted = true
-    `;
-    const res = await client.query(query);
-
-    if (res.rows.length === 0) {
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LINE_ACCESS_TOKEN}`,
-        'X-Line-Retry-Key': uuidv4()
-      };
-
-      const body = {
-        to: LINE_TO,
-        messages: [
-          { type: 'text', text: 'JANSEN KERJAIN GENSHIT SAYA, PETRA' },
-          { type: 'text', text: 'DING DING DING' }
-        ]
-      };
-
-      await axios.post('https://api.line.me/v2/bot/message/push', body, { headers });
-
-      const insertQuery = `
-        INSERT INTO line_bot_activity (date, time, isposted) 
-        VALUES (CURRENT_DATE, CURRENT_TIME, true)
-      `;
-      await client.query(insertQuery);
-    }
-  } catch (error) {
-    console.error('Error checking database or sending message:', error);
-  }
-};
-
-cron.schedule('*/5 * * * *', checkAndSendMessage);
+let requestBodies = [];
+console.log('Starting webserver');
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 app.post('*', (req, res) => {
+  console.log('Posting. . .');
+  const timestamp = moment().format('YYYY-MM-DD HH:mm:ss');
   const requestBody = {
-    path: req.path,
+    timestamp,
     method: req.method,
+    path: req.path,
+    headers: req.headers,
     body: req.body,
-    headers: req.headers
   };
 
   requestBodies.push(requestBody);
@@ -79,8 +40,67 @@ app.post('*', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json(requestBodies);
+  const formattedRequests = requestBodies.map((req) => ({
+    Timestamp: req.timestamp,
+    Method: req.method,
+    Path: req.path,
+    Headers: req.headers,
+    Body: req.body,
+  }));
+
+  res.json(formattedRequests);
 });
+
+const checkDatabaseAndSendMessage = async () => {
+  console.log('Checking database. . .');
+  const today = moment().format('YYYY-MM-DD');
+  const currentTime = moment().format('HH:mm:ss');
+
+  const res = await client.query(
+    'SELECT * FROM line_bot_activity WHERE date = $1 AND isposted = $2',
+    [today, true]
+  );
+
+  if (res.rows.length === 0) {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.LINE_ACCESS_TOKEN}`,
+        'X-Line-Retry-Key': uuidv4(),
+      },
+      body: JSON.stringify({
+        to: process.env.LINE_TO,
+        messages: [
+          {
+            type: 'text',
+            text: 'JANSEN KERJAIN GENSHIT SAYA, PETRA',
+          },
+          {
+            type: 'text',
+            text: 'DING DING DING',
+          },
+        ],
+      }),
+    });
+
+    if (response.ok) {
+      await client.query(
+        'INSERT INTO line_bot_activity (date, time, isposted) VALUES ($1, $2, $3)',
+        [today, currentTime, true]
+      );
+      console.log('Message sent and logged.');
+    } else {
+      console.error('Failed to send message.');
+    }
+  } else {
+    console.log('Message already sent today.');
+  }
+};
+
+const job = new CronJob('*/5 * * * *', checkDatabaseAndSendMessage);
+job.start();
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
