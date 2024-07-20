@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const { json, send } = require('micro');
 require('dotenv').config();
 
 const authUsername = process.env.HTTP_AUTH_USERNAME;
@@ -14,10 +15,12 @@ module.exports = async (req, res) => {
             const [username, password] = credentials.split(':');
             if (username === authUsername && password === authPassword) {
                 try {
-                    const { messages } = req.body;
+                    const body = await json(req);  // Parse the JSON body
+
+                    const { messages } = body;
 
                     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-                        return res.status(400).send('Bad Request: Invalid message format');
+                        return send(res, 400, 'Bad Request: Invalid message format');
                     }
 
                     const url = 'https://api.line.me/v2/bot/message/push';
@@ -26,25 +29,25 @@ module.exports = async (req, res) => {
                         'Authorization': `Bearer ${process.env.LINE_ACCESS_TOKEN}`,
                         'X-Line-Retry-Key': uuidv4()
                     };
-                    const body = {
+                    const lineBody = {
                         to: process.env.LINE_TO,
                         messages: messages.map(text => ({ type: 'text', text }))
                     };
 
-                    const response = await axios.post(url, body, { headers });
+                    const response = await axios.post(url, lineBody, { headers });
                     console.log('Message sent:', response.data);
-                    return res.status(200).send('Message sent successfully');
+                    return send(res, 200, 'Message sent successfully');
                 } catch (error) {
                     console.error('Error sending message:', error.response ? error.response.data : error.message);
-                    return res.status(500).send('Error sending message');
+                    return send(res, 500, 'Error sending message');
                 }
             } else {
-                return res.status(401).send('Unauthorized');
+                return send(res, 401, 'Unauthorized');
             }
         } else {
-            return res.status(401).send('Unauthorized');
+            return send(res, 401, 'Unauthorized');
         }
     } else {
-        return res.status(401).send('Unauthorized');
+        return send(res, 401, 'Unauthorized');
     }
 };
